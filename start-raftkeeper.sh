@@ -1,4 +1,5 @@
-#!/bin/bash
+#!/usr/bin/bash
 cd /var/RaftKeeper/bin/
 python3 config_processor.py
-/bin/bash ./start.sh
+cat ../conf/config.xml
+bash ./start.sh
