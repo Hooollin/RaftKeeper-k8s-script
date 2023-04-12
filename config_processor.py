@@ -1,85 +1,131 @@
 import os
-import sys
 import socket
 import xml.etree.ElementTree as ET
 
 
-def replace_xml_tagvalue(file_path, tag="", value=""):
-    try:
-        tree = ET.parse(file_path)
-    except Exception as e:
-        print(e)
-        return
+def build_logger(logger_root, args):
+    tags = ['level', 'path', 'err_log_path', 'size', 
+              'count', 'compress', 'log_to_console']
+    for tag in tags:
+        if tag in args:
+            elem = ET.SubElement(logger_root, tag)
+            elem.text = args[tag]
 
-    def value_dfs(root, tag, value):
-        for child in root:
-            value_dfs(child, tag, value)
+def build_core_dump(core_dump_root, args):
+    tags = ['size_limit']
+    for tag in tags:
+        if tag in args:
+            elem = ET.SubElement(core_dump_root, tag)
+            elem.text = args[tag]
 
-        if root.tag == tag:
-            root.text = value
+def build_keeper(keeper_root, args):
+    tags = ['my_id', 'host', 'port', 'forwarding_port', 'internal_port', 
+            'log_dir', 'snapshot_dir', 'snapshot_create_interval', 'thread_count',
+            'four_letter_word_white_list']
+    for tag in tags:
+        if tag in args:
+            elem = ET.SubElement(keeper_root, tag)
+            elem.text = args[tag]
 
-
-    root = tree.getroot()
-    value_dfs(root, tag, value)
-
-    try:
-        tree.write(file_path)
-    except Exception as e:
-        print(e)
-
-
-def replace_xml_tagname(file_path, before="", after=""):
-    try:
-        tree = ET.parse(file_path)
-    except Exception as e:
-        print(e)
-        return
+    # second level element
+    raft_settings = ET.SubElement(keeper_root, 'raft_settings')
+    cluster = ET.SubElement(keeper_root, 'cluster')
 
 
-    def tag_dfs(root, before, after):
-        for child in root:
-            tag_dfs(child, before, after)
+    def build_raft_settings(raft_setting_root, args):
+        tags = ['session_timeout_ms', 'operation_timeout_ms', 'dead_session_check_period_ms',
+                'heart_beat_interval_ms', 'election_timeout_lower_bound_ms', 'election_timeout_upper_bound_ms',
+                'reserved_log_items', 'snapshot_distance', 'max_stored_snapshots',
+                'startup_timeout', 'startup_timeout', 'raft_logs_level', 'nuraft_thread_size',
+                'fresh_log_gap', 'configuration_change_tries_count', 'max_batch_size', 'log_fsync_mode']
 
-        if root.tag == before:
-            root.tag = after
+        for tag in tags:
+            if tag in args:
+                elem = ET.SubElement(raft_setting_root, tag)
+                elem.text = args[tag]
 
+    def build_cluster(cluster_root, args):
+        fqdn = socket.getfqdn();
+        for i in range(args['server']):
+            elem = ET.SubElement(cluster_root, 'server')
+            id = ET.SubElement(elem, 'id')
+            host = ET.SubElement(elem, 'host')
+            host.text = fqdn.replace(str(int(args['my_id']) - 1), str(i))
+            id.text = str(i + 1)
 
-    root = tree.getroot()
-    tag_dfs(root, before, after)
+    build_raft_settings(raft_settings, args)
+    build_cluster(cluster, args)
 
-    try:
-        tree.write(file_path)
-    except Exception as e:
-        print(e)
+def build_config(args):
+    root = ET.Element('raftkeeper')
+    # first level subelement
+    logger = ET.SubElement(root, 'logger')
 
+    build_logger(logger, args)
+    core_dump = ET.SubElement(root, 'core_dump')
 
-def process_xml_files(dir_path, func, **kwargs):
-    try:
-        filenames = os.listdir(dir_path)
-    except Exception as e:
-        print(e)
-        return
+    keeper = ET.SubElement(root, 'keeper')
+    build_keeper(keeper, args)
 
-    for filename in filenames:
-        file_path = os.path.join(dir_path, filename)
-        if os.path.isdir(file_path):
-            process_xml_files(file_path, func, **kwargs)
-        elif filename.endswith('.xml'):
-            print(f"Processing {file_path}...")
-            func(file_path, **kwargs)
-
-def append_newline(file_path):
-    try:
-        with open(file_path, 'a') as f:
-            f.write('\n')
-    except Exception as e:
-        print(e)
-
+    tree = ET.ElementTree(root)
+    tree.write(os.getenv('RAFTKEEPER_DIR') + '/conf/config.xml', encoding='utf-8')
+    # tree.write('config.xml', encoding='utf-8')
 
 if __name__ == '__main__':
-    folder_path = '../conf'
+    import argparse
+    parser = argparse.ArgumentParser(description='Process config parameters.')
+    parser.add_argument('--server', required=True, type=int)
+
+    # logger
+    parser.add_argument('--level', default='information')
+    parser.add_argument('--path', default='./log/raftkeeper.log')
+    parser.add_argument('--err_log_path', default='./log/raftkeeper.err.log')
+    parser.add_argument('--size', default='100M')
+    parser.add_argument('--count', default='10')
+    parser.add_argument('--compress', default='true')
+    parser.add_argument('--log_to_console', default='false')
+
+    # core_dump
+    parser.add_argument('--size_limit', default='1073741824')
+    
+    # keeper
+    # my_id, host, port, forwarding_port, internal_port is fixed
+    parser.add_argument('--log_dir', default='./data/log')
+    parser.add_argument('--snapshort_dir', default='./data/snapshot')
+    parser.add_argument('--snapshot_create_interval', default='3600')
+    parser.add_argument('--thread_count', default='16')
+    parser.add_argument('--four_letter_word_white_list', default='')
+    parser.add_argument('--super_digest', default='')
+
+    parser.add_argument('--session_timeout_ms', default='30000')
+    parser.add_argument('--operation_timeout_ms', default='20000')
+    parser.add_argument('--dead_session_check_period_ms', default='100')
+    parser.add_argument('--heart_beat_interval_ms', default='500')
+    parser.add_argument('--election_timeout_lower_bound_ms', default='10000')
+    parser.add_argument('--election_timeout_upper_bound_ms', default='20000')
+    parser.add_argument('--reserved_log_items', default='1000000')
+    parser.add_argument('--snapshot_distance', default='3000000')
+    parser.add_argument('--max_stored_snapshots', default='5')
+    parser.add_argument('--startup_timeout', default='6000000')
+    parser.add_argument('--shutdown_timeout', default='5000')
+    parser.add_argument('--raft_logs_level', default='information')
+    parser.add_argument('--nuraft_thread_size', default='32')
+    parser.add_argument('--fresh_log_gap', default='200')
+    parser.add_argument('--configuration_change_tries_count', default='30')
+    parser.add_argument('--max_batch_size', default='1000')
+    parser.add_argument('--log_fsync_mode', default='fsync_parallel')
+
+    args = vars(parser.parse_args())
 
     hostname = socket.gethostname()
-    server_id = hostname.split('-')[-1]
-    # processing tag value
-    process_xml_files(folder_path, replace_xml_tagvalue, tag="my_id", value=server_id)
+    server_id = str(int(hostname.split('-')[-1]) + 1)
+
+    # values below are fixed
+    args['my_id'] = server_id
+    args['port'] = '8101'
+    args['forwarding_port'] = '8102'
+    args['internal_port'] = '8103'
+    args['host'] = socket.getfqdn()
+    
+    print(args)
+    build_config(args)
