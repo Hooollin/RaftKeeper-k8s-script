@@ -112,7 +112,7 @@ if __name__ == '__main__':
     parser.add_argument('--snapshort_dir', default='./data/snapshot')
     parser.add_argument('--snapshot_create_interval', default='3600')
     parser.add_argument('--thread_count', default='16')
-    parser.add_argument('--four_letter_word_white_list', default='')
+    parser.add_argument('--four_letter_word_white_list', default='conf,cons,crst,envi,ruok,srst,srvr,stat,wchs,dirs,mntr,isro,lgif,rqld')
     parser.add_argument('--super_digest', default='')
 
     parser.add_argument('--session_timeout_ms', default='30000')
