@@ -2,6 +2,23 @@ import os
 import socket
 import xml.etree.ElementTree as ET
 
+def indent(elem, level=0):
+    i = "\n" + level*"  "
+    j = "\n" + (level-1)*"  "
+    if len(elem):
+        if not elem.text or not elem.text.strip():
+            elem.text = i + "  "
+        if not elem.tail or not elem.tail.strip():
+            elem.tail = i
+        for subelem in elem:
+            indent(subelem, level+1)
+        if not elem.tail or not elem.tail.strip():
+            elem.tail = j
+    else:
+        if level and (not elem.tail or not elem.tail.strip()):
+            elem.tail = j
+    return elem        
+
 
 def build_logger(logger_root, args):
     tags = ['level', 'path', 'err_log_path', 'size', 
@@ -66,7 +83,8 @@ def build_config(args):
 
     keeper = ET.SubElement(root, 'keeper')
     build_keeper(keeper, args)
-
+    
+    indent(root)
     tree = ET.ElementTree(root)
     tree.write(os.getenv('RAFTKEEPER_DIR') + '/conf/config.xml', encoding='utf-8')
     # tree.write('config.xml', encoding='utf-8')
